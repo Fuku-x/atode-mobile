@@ -102,6 +102,23 @@ curl -i http://127.0.0.1:8080/healthz
 
 `frontend/` は Flutter の公式テンプレートで生成されています。
 
+### Firebase Auth（Email/Password）ローカル設定（iOS）
+
+- Bundle ID: `com.example.atodeMobile`
+
+1. Firebase Console でプロジェクトを作成（または選択）
+2. Authentication → Sign-in method → Email/Password を有効化
+3. Project settings → Your apps → iOS アプリを追加
+   - Bundle ID は `com.example.atodeMobile`
+4. `GoogleService-Info.plist` をダウンロードして配置
+   - 配置先: `frontend/ios/Runner/GoogleService-Info.plist`
+   - Xcode で Runner ターゲットに追加（Copy items if needed / Add to targets: Runner）
+   - 秘密情報のためコミットしない（ルート `.gitignore` で除外済み）
+5. 起動してログイン成功まで確認
+   - `flutter pub get`
+   - `flutter run`
+   - ログイン画面で新規登録/ログインが成功し、ログアウトでログイン画面に戻ること
+
 ### 依存関係の取得
 
 ```bash
