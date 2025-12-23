@@ -45,8 +45,10 @@ func main() {
 		_ = dbConn.Close()
 	}()
 
-	if err := db.EnsureUsersTable(context.Background(), dbConn); err != nil {
-		log.Fatalf("failed to ensure users table: %v", err)
+	// Run schema migrations on startup.
+	// ATODE_MIGRATIONS_PATH can override the default "migrations" directory.
+	if err := db.MigrateUp(context.Background(), os.Getenv("ATODE_DATABASE_URL")); err != nil {
+		log.Fatalf("failed to run migrations: %v", err)
 	}
 
 	userRepo := repository.NewUserRepository(dbConn)
