@@ -10,7 +10,12 @@ import (
 )
 
 type Verifier interface {
-	VerifyIDToken(ctx context.Context, idToken string) (string, error)
+	VerifyIDToken(ctx context.Context, idToken string) (FirebaseUser, error)
+}
+
+type FirebaseUser struct {
+	UID   string
+	Email string
 }
 
 type FirebaseVerifier struct {
@@ -37,10 +42,13 @@ func NewFirebaseVerifier(ctx context.Context) (*FirebaseVerifier, error) {
 	return &FirebaseVerifier{client: client}, nil
 }
 
-func (v *FirebaseVerifier) VerifyIDToken(ctx context.Context, idToken string) (string, error) {
+func (v *FirebaseVerifier) VerifyIDToken(ctx context.Context, idToken string) (FirebaseUser, error) {
 	tok, err := v.client.VerifyIDToken(ctx, idToken)
 	if err != nil {
-		return "", err
+		return FirebaseUser{}, err
 	}
-	return tok.UID, nil
+
+	email, _ := tok.Claims["email"].(string)
+
+	return FirebaseUser{UID: tok.UID, Email: email}, nil
 }
