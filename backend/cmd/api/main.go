@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -9,6 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"example.com/atode/backend/internal/auth"
+	"example.com/atode/backend/internal/middleware"
 )
 
 type config struct {
@@ -26,12 +30,33 @@ func loadConfig() config {
 func main() {
 	cfg := loadConfig()
 
+	verifier, err := auth.NewFirebaseVerifier(context.Background())
+	if err != nil {
+		log.Fatalf("failed to init firebase verifier: %v", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	mux.Handle(
+		"/me",
+		middleware.RequireFirebaseAuth(verifier)(
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				uid, ok := auth.UIDFromContext(r.Context())
+				if !ok {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				_ = json.NewEncoder(w).Encode(map[string]string{"uid": string(uid)})
+			}),
+		),
+	)
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
