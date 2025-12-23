@@ -28,12 +28,17 @@ class TasksApi {
     bool? isDone,
     DateTime? dueAt,
     bool updateDueAt = false,
+    DateTime? scheduledAt,
+    bool updateScheduledAt = false,
   }) async {
     final body = <String, dynamic>{};
     if (title != null) body['title'] = title;
     if (isDone != null) body['isDone'] = isDone;
     if (updateDueAt) {
       body['dueAt'] = dueAt?.toIso8601String();
+    }
+    if (updateScheduledAt) {
+      body['scheduledAt'] = scheduledAt?.toIso8601String();
     }
 
     if (body.isEmpty) return;
