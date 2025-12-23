@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"example.com/atode/backend/internal/auth"
+	"example.com/atode/backend/internal/db"
 	"example.com/atode/backend/internal/middleware"
+	"example.com/atode/backend/internal/repository"
 )
 
 type config struct {
@@ -35,6 +37,20 @@ func main() {
 		log.Fatalf("failed to init firebase verifier: %v", err)
 	}
 
+	dbConn, err := db.Open(context.Background())
+	if err != nil {
+		log.Fatalf("failed to open db: %v", err)
+	}
+	defer func() {
+		_ = dbConn.Close()
+	}()
+
+	if err := db.EnsureUsersTable(context.Background(), dbConn); err != nil {
+		log.Fatalf("failed to ensure users table: %v", err)
+	}
+
+	userRepo := repository.NewUserRepository(dbConn)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -44,16 +60,28 @@ func main() {
 
 	mux.Handle(
 		"/me",
-		middleware.RequireFirebaseAuth(verifier)(
+		middleware.RequireFirebaseAuth(verifier, userRepo)(
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				userID, ok := auth.UserIDFromContext(r.Context())
+				if !ok {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+
 				uid, ok := auth.UIDFromContext(r.Context())
 				if !ok {
 					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 
+				email, _ := auth.EmailFromContext(r.Context())
+
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				_ = json.NewEncoder(w).Encode(map[string]string{"uid": string(uid)})
+				_ = json.NewEncoder(w).Encode(map[string]string{
+					"user_id": userID.String(),
+					"firebase_uid": string(uid),
+					"email": email,
+				})
 			}),
 		),
 	)
