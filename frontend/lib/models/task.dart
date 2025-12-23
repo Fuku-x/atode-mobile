@@ -4,12 +4,14 @@ class Task {
     required this.title,
     required this.isDone,
     this.dueAt,
+    this.scheduledAt,
   });
 
   final String id;
   final String title;
   final bool isDone;
   final DateTime? dueAt;
+  final DateTime? scheduledAt;
 
   factory Task.fromJson(Map<String, dynamic> json) {
     final title = (json['title'] ?? json['name'] ?? '').toString();
@@ -24,11 +26,21 @@ class Task {
       dueAt = DateTime.fromMillisecondsSinceEpoch(dueRaw);
     }
 
+    final scheduledRaw =
+        json['scheduledAt'] ?? json['scheduled_at'] ?? json['scheduled_at_ms'];
+    DateTime? scheduledAt;
+    if (scheduledRaw is String && scheduledRaw.isNotEmpty) {
+      scheduledAt = DateTime.tryParse(scheduledRaw);
+    } else if (scheduledRaw is int) {
+      scheduledAt = DateTime.fromMillisecondsSinceEpoch(scheduledRaw);
+    }
+
     return Task(
       id: id,
       title: title,
       isDone: doneRaw == true,
       dueAt: dueAt,
+      scheduledAt: scheduledAt,
     );
   }
 
@@ -38,6 +50,7 @@ class Task {
       'title': title,
       'isDone': isDone,
       if (dueAt != null) 'dueAt': dueAt!.toIso8601String(),
+      if (scheduledAt != null) 'scheduledAt': scheduledAt!.toIso8601String(),
     };
   }
 

@@ -5,6 +5,8 @@ import '../../models/task.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/app_snack_bar.dart';
 
+import '../reminders/reminder_preset_sheet.dart';
+
 import 'tasks_api.dart';
 
 class TasksScreen extends StatefulWidget {
@@ -60,13 +62,13 @@ class _TasksScreenState extends State<TasksScreen> {
     }
   }
 
-  String? _formatDueAt(DateTime? dueAt) {
-    if (dueAt == null) return null;
-    final y = dueAt.year.toString().padLeft(4, '0');
-    final m = dueAt.month.toString().padLeft(2, '0');
-    final d = dueAt.day.toString().padLeft(2, '0');
-    final hh = dueAt.hour.toString().padLeft(2, '0');
-    final mm = dueAt.minute.toString().padLeft(2, '0');
+  String? _formatDateTime(DateTime? dt) {
+    if (dt == null) return null;
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
     return '$y-$m-$d $hh:$mm';
   }
 
@@ -79,6 +81,7 @@ class _TasksScreenState extends State<TasksScreen> {
 
     final controller = TextEditingController(text: task.title);
     DateTime? dueAt = task.dueAt;
+    DateTime? scheduledAt = task.scheduledAt;
 
     final result = await showDialog<_TaskEditResult>(
       context: context,
@@ -99,7 +102,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(_formatDueAt(dueAt) ?? '期限なし'),
+                        child: Text(_formatDateTime(dueAt) ?? '期限なし'),
                       ),
                       TextButton(
                         onPressed: () async {
@@ -142,6 +145,27 @@ class _TasksScreenState extends State<TasksScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(_formatDateTime(scheduledAt) ?? 'リマインダーなし'),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final selection = await showReminderPresetSheet(
+                            context,
+                            current: scheduledAt,
+                          );
+                          if (selection == null) return;
+                          setState(() {
+                            scheduledAt = selection.scheduledAt;
+                          });
+                        },
+                        child: const Text('プリセット'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
               actions: [
@@ -158,6 +182,8 @@ class _TasksScreenState extends State<TasksScreen> {
                         title: controller.text.trim(),
                         dueAt: dueAt,
                         updateDueAt: true,
+                        scheduledAt: scheduledAt,
+                        updateScheduledAt: true,
                       ),
                     );
                   },
@@ -188,6 +214,8 @@ class _TasksScreenState extends State<TasksScreen> {
         title: result.title,
         dueAt: result.dueAt,
         updateDueAt: result.updateDueAt,
+        scheduledAt: result.scheduledAt,
+        updateScheduledAt: result.updateScheduledAt,
       );
       _reload();
     } on ApiException catch (e) {
@@ -345,7 +373,14 @@ class _TasksScreenState extends State<TasksScreen> {
                   itemBuilder: (context, index) {
                     final task = tasks[index];
                     final isUpdating = task.id.isNotEmpty && _updatingTaskIds.contains(task.id);
-                    final dueAtText = _formatDueAt(task.dueAt);
+                    final dueAtText = _formatDateTime(task.dueAt);
+                    final scheduledAtText = _formatDateTime(task.scheduledAt);
+
+                    final subtitleParts = <String>[];
+                    if (dueAtText != null) subtitleParts.add('期限: $dueAtText');
+                    if (scheduledAtText != null) {
+                      subtitleParts.add('リマインダー: $scheduledAtText');
+                    }
 
                     return ListTile(
                       leading: Checkbox(
@@ -353,7 +388,9 @@ class _TasksScreenState extends State<TasksScreen> {
                         onChanged: isUpdating ? null : (_) => _toggleDone(task),
                       ),
                       title: Text(task.title.isEmpty ? '(no title)' : task.title),
-                      subtitle: dueAtText == null ? null : Text(dueAtText),
+                      subtitle: subtitleParts.isEmpty
+                          ? null
+                          : Text(subtitleParts.join(' / ')),
                       trailing: IconButton(
                         onPressed: isUpdating ? null : () => _editTask(task),
                         icon: const Icon(Icons.edit),
@@ -376,9 +413,13 @@ class _TaskEditResult {
     required this.title,
     required this.dueAt,
     required this.updateDueAt,
+    required this.scheduledAt,
+    required this.updateScheduledAt,
   });
 
   final String title;
   final DateTime? dueAt;
   final bool updateDueAt;
+  final DateTime? scheduledAt;
+  final bool updateScheduledAt;
 }
