@@ -21,11 +21,190 @@ class _TasksScreenState extends State<TasksScreen> {
   final _titleFocusNode = FocusNode();
 
   bool _isCreating = false;
+  final _updatingTaskIds = <String>{};
 
   @override
   void initState() {
     super.initState();
     _future = TasksApi().fetchTasks();
+  }
+
+  Future<void> _toggleDone(Task task) async {
+    if (task.id.isEmpty) {
+      showAppErrorSnackBar(context, 'タスクIDが不正です');
+      return;
+    }
+    if (_updatingTaskIds.contains(task.id)) return;
+
+    setState(() {
+      _updatingTaskIds.add(task.id);
+    });
+
+    try {
+      await TasksApi().updateTask(id: task.id, isDone: !task.isDone);
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppErrorSnackBar(context, e.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppErrorSnackBar(context, 'タスクの更新に失敗しました');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingTaskIds.remove(task.id);
+        });
+      }
+    }
+  }
+
+  String? _formatDueAt(DateTime? dueAt) {
+    if (dueAt == null) return null;
+    final y = dueAt.year.toString().padLeft(4, '0');
+    final m = dueAt.month.toString().padLeft(2, '0');
+    final d = dueAt.day.toString().padLeft(2, '0');
+    final hh = dueAt.hour.toString().padLeft(2, '0');
+    final mm = dueAt.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
+  }
+
+  Future<void> _editTask(Task task) async {
+    if (task.id.isEmpty) {
+      showAppErrorSnackBar(context, 'タスクIDが不正です');
+      return;
+    }
+    if (_updatingTaskIds.contains(task.id)) return;
+
+    final controller = TextEditingController(text: task.title);
+    DateTime? dueAt = task.dueAt;
+
+    final result = await showDialog<_TaskEditResult>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('タスク編集'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(labelText: 'タイトル'),
+                    textInputAction: TextInputAction.done,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(_formatDueAt(dueAt) ?? '期限なし'),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final pickedDate = await showDatePicker(
+                            context: context,
+                            initialDate: (dueAt ?? DateTime.now()),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100),
+                          );
+                          if (pickedDate == null) return;
+
+                          final pickedTime = await showTimePicker(
+                            context: context,
+                            initialTime:
+                                TimeOfDay.fromDateTime(dueAt ?? DateTime.now()),
+                          );
+                          if (pickedTime == null) return;
+
+                          final next = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            pickedTime.hour,
+                            pickedTime.minute,
+                          );
+
+                          setState(() {
+                            dueAt = next;
+                          });
+                        },
+                        child: const Text('期限設定'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            dueAt = null;
+                          });
+                        },
+                        child: const Text('クリア'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(null);
+                  },
+                  child: const Text('キャンセル'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _TaskEditResult(
+                        title: controller.text.trim(),
+                        dueAt: dueAt,
+                        updateDueAt: true,
+                      ),
+                    );
+                  },
+                  child: const Text('保存'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    controller.dispose();
+    if (result == null) return;
+
+    if (result.title.isEmpty) {
+      showAppErrorSnackBar(context, 'タイトルを入力してください');
+      return;
+    }
+
+    setState(() {
+      _updatingTaskIds.add(task.id);
+    });
+
+    try {
+      await TasksApi().updateTask(
+        id: task.id,
+        title: result.title,
+        dueAt: result.dueAt,
+        updateDueAt: result.updateDueAt,
+      );
+      _reload();
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppErrorSnackBar(context, e.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        showAppErrorSnackBar(context, 'タスクの更新に失敗しました');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _updatingTaskIds.remove(task.id);
+        });
+      }
+    }
   }
 
   @override
@@ -165,14 +344,21 @@ class _TasksScreenState extends State<TasksScreen> {
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final task = tasks[index];
+                    final isUpdating = task.id.isNotEmpty && _updatingTaskIds.contains(task.id);
+                    final dueAtText = _formatDueAt(task.dueAt);
+
                     return ListTile(
-                      leading: Icon(
-                        task.isDone
-                            ? Icons.check_circle
-                            : Icons.radio_button_unchecked,
+                      leading: Checkbox(
+                        value: task.isDone,
+                        onChanged: isUpdating ? null : (_) => _toggleDone(task),
                       ),
                       title: Text(task.title.isEmpty ? '(no title)' : task.title),
-                      subtitle: task.id.isEmpty ? null : Text(task.id),
+                      subtitle: dueAtText == null ? null : Text(dueAtText),
+                      trailing: IconButton(
+                        onPressed: isUpdating ? null : () => _editTask(task),
+                        icon: const Icon(Icons.edit),
+                        tooltip: 'Edit',
+                      ),
                     );
                   },
                 );
@@ -183,4 +369,16 @@ class _TasksScreenState extends State<TasksScreen> {
       ),
     );
   }
+}
+
+class _TaskEditResult {
+  _TaskEditResult({
+    required this.title,
+    required this.dueAt,
+    required this.updateDueAt,
+  });
+
+  final String title;
+  final DateTime? dueAt;
+  final bool updateDueAt;
 }
