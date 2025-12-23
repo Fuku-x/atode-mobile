@@ -4,10 +4,15 @@ Future<String?> getFirebaseIdToken({
   FirebaseAuth? auth,
   bool forceRefresh = false,
 }) async {
-  final a = auth ?? FirebaseAuth.instance;
-  final user = a.currentUser;
+  final authInstance = auth ?? FirebaseAuth.instance;
+  final user = authInstance.currentUser;
   if (user == null) return null;
-  return user.getIdToken(forceRefresh);
+
+  try {
+    return await user.getIdToken(forceRefresh);
+  } catch (_) {
+    return null;
+  }
 }
 
 Future<String?> firebaseIdTokenProvider() {
