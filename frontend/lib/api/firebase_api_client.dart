@@ -8,10 +8,10 @@ class FirebaseApiClient {
     ApiConfig? config,
     bool forceRefreshToken = false,
   }) {
-    final c = config ?? ApiConfig.fromEnvironment();
+    final configInstance = config ?? ApiConfig.fromEnvironment();
 
     return ApiClient(
-      config: c,
+      config: configInstance,
       tokenProvider: () => getFirebaseIdToken(forceRefresh: forceRefreshToken),
     );
   }
