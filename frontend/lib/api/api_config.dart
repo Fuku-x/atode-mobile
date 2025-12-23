@@ -13,7 +13,7 @@ class ApiConfig {
         : ApiEnvironment.dev;
 
     final defaultBaseUrl = environment == ApiEnvironment.prod
-        ? 'http://localhost:8080'
+        ? 'https://api.example.com'
         : 'http://localhost:8080';
 
     final baseUrlRaw = const String.fromEnvironment(
@@ -23,9 +23,14 @@ class ApiConfig {
 
     final baseUrl = baseUrlRaw.isEmpty ? defaultBaseUrl : baseUrlRaw;
 
+    final uri = Uri.parse(baseUrl);
+    if (environment == ApiEnvironment.prod && uri.scheme != 'https') {
+      throw StateError('In prod, API_BASE_URL must use https.');
+    }
+
     return ApiConfig(
       environment: environment,
-      baseUri: Uri.parse(baseUrl),
+      baseUri: uri,
     );
   }
 }
