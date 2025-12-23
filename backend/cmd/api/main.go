@@ -13,8 +13,10 @@ import (
 
 	"example.com/atode/backend/internal/auth"
 	"example.com/atode/backend/internal/db"
+	"example.com/atode/backend/internal/handler"
 	"example.com/atode/backend/internal/middleware"
 	"example.com/atode/backend/internal/repository"
+	"example.com/atode/backend/internal/service"
 )
 
 type config struct {
@@ -52,6 +54,9 @@ func main() {
 	}
 
 	userRepo := repository.NewUserRepository(dbConn)
+	taskRepo := repository.NewTaskRepository(dbConn)
+	taskSvc := service.NewTaskService(taskRepo)
+	taskHandler := handler.NewTaskHandler(taskSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +99,13 @@ func main() {
 					"email": email,
 				})
 			}),
+		),
+	)
+
+	mux.Handle(
+		"/tasks",
+		middleware.RequireFirebaseAuth(verifier, userRepo)(
+			http.HandlerFunc(taskHandler.Create),
 		),
 	)
 
