@@ -12,4 +12,13 @@ class TasksApi {
       decoder: (json) => Task.listFromJson(json),
     );
   }
+
+  Future<void> createTask({required String title}) async {
+    await _client.post<dynamic>(
+      '/tasks',
+      body: {
+        'title': title,
+      },
+    );
+  }
 }
