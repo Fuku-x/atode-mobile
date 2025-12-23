@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/home_screen.dart';
 import '../screens/login_screen.dart';
+import '../widgets/app_loading_indicator.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -14,7 +15,7 @@ class AuthGate extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(child: AppLoadingIndicator(size: 24, strokeWidth: 3)),
           );
         }
 
