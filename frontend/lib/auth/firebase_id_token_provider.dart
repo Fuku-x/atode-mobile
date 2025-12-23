@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 Future<String?> getFirebaseIdToken({
@@ -10,7 +12,13 @@ Future<String?> getFirebaseIdToken({
 
   try {
     return await user.getIdToken(forceRefresh);
-  } catch (_) {
+  } catch (e, st) {
+    log(
+      'Failed to get Firebase ID token',
+      error: e,
+      stackTrace: st,
+      name: 'firebase_id_token_provider',
+    );
     return null;
   }
 }
