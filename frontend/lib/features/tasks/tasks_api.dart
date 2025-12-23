@@ -21,4 +21,26 @@ class TasksApi {
       },
     );
   }
+
+  Future<void> updateTask({
+    required String id,
+    String? title,
+    bool? isDone,
+    DateTime? dueAt,
+    bool updateDueAt = false,
+  }) async {
+    final body = <String, dynamic>{};
+    if (title != null) body['title'] = title;
+    if (isDone != null) body['isDone'] = isDone;
+    if (updateDueAt) {
+      body['dueAt'] = dueAt?.toIso8601String();
+    }
+
+    if (body.isEmpty) return;
+
+    await _client.put<dynamic>(
+      '/tasks/$id',
+      body: body,
+    );
+  }
 }
