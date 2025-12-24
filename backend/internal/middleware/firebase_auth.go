@@ -2,17 +2,13 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"strings"
 
 	"example.com/atode/backend/internal/auth"
+	"example.com/atode/backend/internal/httpx"
 	"github.com/google/uuid"
 )
-
-type authResponse struct {
-	Error string `json:"error"`
-}
 
 type UserUpserter interface {
 	UpsertFirebaseUser(ctx context.Context, firebaseUID string, email string) (uuid.UUID, error)
@@ -23,19 +19,19 @@ func RequireFirebaseAuth(verifier auth.Verifier, upserter UserUpserter) func(htt
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := bearerTokenFromHeader(r.Header.Get("Authorization"))
 			if !ok {
-				writeUnauthorized(w)
+				writeUnauthorized(w, r)
 				return
 			}
 
 			fbUser, err := verifier.VerifyIDToken(r.Context(), token)
 			if err != nil {
-				writeUnauthorized(w)
+				writeUnauthorized(w, r)
 				return
 			}
 
 			userID, err := upserter.UpsertFirebaseUser(r.Context(), fbUser.UID, fbUser.Email)
 			if err != nil {
-				writeInternalServerError(w)
+				writeInternalServerError(w, r)
 				return
 			}
 
@@ -64,14 +60,10 @@ func bearerTokenFromHeader(v string) (string, bool) {
 	return parts[1], true
 }
 
-func writeUnauthorized(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(authResponse{Error: "unauthorized"})
+func writeUnauthorized(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteError(w, r, http.StatusUnauthorized, "unauthorized", "unauthorized")
 }
 
-func writeInternalServerError(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusInternalServerError)
-	_ = json.NewEncoder(w).Encode(authResponse{Error: "internal_server_error"})
+func writeInternalServerError(w http.ResponseWriter, r *http.Request) {
+	httpx.WriteError(w, r, http.StatusInternalServerError, "internal_server_error", "internal server error")
 }
