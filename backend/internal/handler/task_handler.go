@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"example.com/atode/backend/internal/auth"
+	"example.com/atode/backend/internal/model"
 	"example.com/atode/backend/internal/service"
 )
 
@@ -26,7 +27,7 @@ type errorResponse struct {
 }
 
 type listTasksResponse struct {
-	Tasks any `json:"tasks"`
+	Tasks []model.Task `json:"tasks"`
 }
 
 func (h *TaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
