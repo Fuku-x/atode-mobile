@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"example.com/atode/backend/internal/auth"
+	"example.com/atode/backend/internal/httpx"
 	"example.com/atode/backend/internal/service"
 	"github.com/google/uuid"
 )
@@ -31,13 +32,17 @@ type updateTaskRequest struct {
 func (h *TaskItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
-		w.WriteHeader(http.StatusUnauthorized)
+		httpx.WriteError(w, r, http.StatusUnauthorized, "unauthorized", "unauthorized")
 		return
 	}
 
-	taskID, ok := parseTaskIDFromPath(r.URL.Path)
+	taskID, status, ok := parseTaskIDFromPath(r.URL.Path)
 	if !ok {
-		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not_found"})
+		if status == http.StatusBadRequest {
+			httpx.WriteError(w, r, http.StatusBadRequest, "invalid_task_id", "invalid task id")
+			return
+		}
+		httpx.WriteError(w, r, http.StatusNotFound, "not_found", "not found")
 		return
 	}
 
@@ -47,29 +52,30 @@ func (h *TaskItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodDelete:
 		h.handleDelete(w, r, userID, taskID)
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		httpx.WriteError(w, r, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 	}
 }
 
-func parseTaskIDFromPath(path string) (uuid.UUID, bool) {
+
+func parseTaskIDFromPath(path string) (uuid.UUID, int, bool) {
 	idStr := strings.TrimPrefix(path, "/tasks/")
 	if idStr == "" || strings.Contains(idStr, "/") {
-		return uuid.UUID{}, false
+		return uuid.UUID{}, http.StatusNotFound, false
 	}
 	id, err := uuid.Parse(idStr)
 	if err != nil {
-		return uuid.UUID{}, false
+		return uuid.UUID{}, http.StatusBadRequest, false
 	}
-	return id, true
+	return id, http.StatusOK, true
 }
 
 func (h *TaskItemHandler) handleDelete(w http.ResponseWriter, r *http.Request, userID uuid.UUID, taskID uuid.UUID) {
 	if err := h.tasks.DeleteTask(r.Context(), userID, taskID); err != nil {
 		if errors.Is(err, service.ErrTaskNotFound) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not_found"})
+			httpx.WriteError(w, r, http.StatusNotFound, "not_found", "not found")
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal_server_error"})
+		httpx.WriteError(w, r, http.StatusInternalServerError, "internal_server_error", "internal server error")
 		return
 	}
 
@@ -77,12 +83,20 @@ func (h *TaskItemHandler) handleDelete(w http.ResponseWriter, r *http.Request, u
 }
 
 func (h *TaskItemHandler) handlePut(w http.ResponseWriter, r *http.Request, userID uuid.UUID, taskID uuid.UUID) {
-	var req updateTaskRequest
+	// Decode as raw map first to detect presence (including explicit null) and reject unknown fields.
+	var raw map[string]json.RawMessage
 	dec := json.NewDecoder(r.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+	if err := dec.Decode(&raw); err != nil {
+		httpx.WriteError(w, r, http.StatusBadRequest, "invalid_json", "invalid json")
 		return
+	}
+	for k := range raw {
+		switch k {
+		case "title", "isDone", "dueAt", "scheduledAt":
+		default:
+			httpx.WriteError(w, r, http.StatusBadRequest, "invalid_json", "invalid json")
+			return
+		}
 	}
 
 	var (
@@ -94,52 +108,52 @@ func (h *TaskItemHandler) handlePut(w http.ResponseWriter, r *http.Request, user
 		scheduledAt        *time.Time
 	)
 
-	if req.Title != nil {
+	if b, ok := raw["title"]; ok {
 		var v string
-		if err := json.Unmarshal(req.Title, &v); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_title"})
+		if err := json.Unmarshal(b, &v); err != nil {
+			httpx.WriteError(w, r, http.StatusBadRequest, "invalid_title", "invalid title")
 			return
 		}
 		title = &v
 	}
 
-	if req.IsDone != nil {
+	if b, ok := raw["isDone"]; ok {
 		var v bool
-		if err := json.Unmarshal(req.IsDone, &v); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_is_done"})
+		if err := json.Unmarshal(b, &v); err != nil {
+			httpx.WriteError(w, r, http.StatusBadRequest, "invalid_is_done", "invalid isDone")
 			return
 		}
 		isDone = &v
 	}
 
-	if req.DueAt != nil {
+	if b, ok := raw["dueAt"]; ok {
 		dueAtPresent = true
-		if string(req.DueAt) != "null" {
+		if string(b) != "null" {
 			var s string
-			if err := json.Unmarshal(req.DueAt, &s); err != nil {
-				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_due_at"})
+			if err := json.Unmarshal(b, &s); err != nil {
+				httpx.WriteError(w, r, http.StatusBadRequest, "invalid_due_at", "invalid dueAt")
 				return
 			}
 			t, err := time.Parse(time.RFC3339Nano, s)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_due_at"})
+				httpx.WriteError(w, r, http.StatusBadRequest, "invalid_due_at", "invalid dueAt")
 				return
 			}
 			dueAt = &t
 		}
 	}
 
-	if req.ScheduledAt != nil {
+	if b, ok := raw["scheduledAt"]; ok {
 		scheduledAtPresent = true
-		if string(req.ScheduledAt) != "null" {
+		if string(b) != "null" {
 			var s string
-			if err := json.Unmarshal(req.ScheduledAt, &s); err != nil {
-				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_scheduled_at"})
+			if err := json.Unmarshal(b, &s); err != nil {
+				httpx.WriteError(w, r, http.StatusBadRequest, "invalid_scheduled_at", "invalid scheduledAt")
 				return
 			}
 			t, err := time.Parse(time.RFC3339Nano, s)
 			if err != nil {
-				writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_scheduled_at"})
+				httpx.WriteError(w, r, http.StatusBadRequest, "invalid_scheduled_at", "invalid scheduledAt")
 				return
 			}
 			scheduledAt = &t
@@ -159,21 +173,21 @@ func (h *TaskItemHandler) handlePut(w http.ResponseWriter, r *http.Request, user
 	)
 	if err != nil {
 		if errors.Is(err, service.ErrInvalidTaskTitle) {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "title_required"})
+			httpx.WriteError(w, r, http.StatusBadRequest, "title_required", "title is required")
 			return
 		}
 		if errors.Is(err, service.ErrNoTaskFieldsToUpdate) {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "no_fields"})
+			httpx.WriteError(w, r, http.StatusBadRequest, "no_fields", "no fields to update")
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
-			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not_found"})
+			httpx.WriteError(w, r, http.StatusNotFound, "not_found", "not found")
 			return
 		}
 
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal_server_error"})
+		httpx.WriteError(w, r, http.StatusInternalServerError, "internal_server_error", "internal server error")
 		return
 	}
 
-	writeJSON(w, http.StatusOK, task)
+	httpx.WriteJSON(w, http.StatusOK, task)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"example.com/atode/backend/internal/auth"
 	"example.com/atode/backend/internal/db"
 	"example.com/atode/backend/internal/handler"
+	"example.com/atode/backend/internal/httpx"
+	logx "example.com/atode/backend/internal/log"
 	"example.com/atode/backend/internal/middleware"
 	"example.com/atode/backend/internal/repository"
 	"example.com/atode/backend/internal/service"
@@ -81,20 +82,19 @@ func main() {
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				userID, ok := auth.UserIDFromContext(r.Context())
 				if !ok {
-					w.WriteHeader(http.StatusInternalServerError)
+					httpx.WriteError(w, r, http.StatusInternalServerError, "internal_server_error", "internal server error")
 					return
 				}
 
 				uid, ok := auth.UIDFromContext(r.Context())
 				if !ok {
-					w.WriteHeader(http.StatusInternalServerError)
+					httpx.WriteError(w, r, http.StatusInternalServerError, "internal_server_error", "internal server error")
 					return
 				}
 
 				email, _ := auth.EmailFromContext(r.Context())
 
-				w.Header().Set("Content-Type", "application/json; charset=utf-8")
-				_ = json.NewEncoder(w).Encode(map[string]string{
+				httpx.WriteJSON(w, http.StatusOK, map[string]string{
 					"user_id": userID.String(),
 					"firebase_uid": string(uid),
 					"email": email,
@@ -119,7 +119,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.addr,
-		Handler:           mux,
+		Handler:           httpx.RequestIDMiddleware(logx.AccessLogMiddleware(mux)),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
