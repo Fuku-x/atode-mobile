@@ -57,6 +57,7 @@ func main() {
 	taskRepo := repository.NewTaskRepository(dbConn)
 	taskSvc := service.NewTaskService(taskRepo)
 	taskHandler := handler.NewTaskHandler(taskSvc)
+	taskItemHandler := handler.NewTaskItemHandler(taskSvc)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +107,13 @@ func main() {
 		"/tasks",
 		middleware.RequireFirebaseAuth(verifier, userRepo)(
 			taskHandler,
+		),
+	)
+
+	mux.Handle(
+		"/tasks/",
+		middleware.RequireFirebaseAuth(verifier, userRepo)(
+			taskItemHandler,
 		),
 	)
 
