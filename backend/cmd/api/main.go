@@ -105,7 +105,7 @@ func main() {
 	mux.Handle(
 		"/tasks",
 		middleware.RequireFirebaseAuth(verifier, userRepo)(
-			http.HandlerFunc(taskHandler.Create),
+			taskHandler,
 		),
 	)
 

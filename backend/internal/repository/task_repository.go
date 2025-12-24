@@ -51,3 +51,49 @@ RETURNING id, user_id, title, is_done, due_at, scheduled_at, created_at, updated
 
 	return t, nil
 }
+
+func (r *TaskRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]model.Task, error) {
+	rows, err := r.db.QueryContext(
+		ctx,
+		`SELECT id, user_id, title, is_done, due_at, scheduled_at, created_at, updated_at
+FROM tasks
+WHERE user_id = $1
+ORDER BY is_done ASC, COALESCE(due_at, 'infinity'::timestamptz) ASC, created_at DESC;`,
+		userID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []model.Task
+	for rows.Next() {
+		var t model.Task
+		var dueAt sql.NullTime
+		var scheduledAt sql.NullTime
+		if err := rows.Scan(
+			&t.ID,
+			&t.UserID,
+			&t.Title,
+			&t.IsDone,
+			&dueAt,
+			&scheduledAt,
+			&t.CreatedAt,
+			&t.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if dueAt.Valid {
+			t.DueAt = &dueAt.Time
+		}
+		if scheduledAt.Valid {
+			t.ScheduledAt = &scheduledAt.Time
+		}
+		out = append(out, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}

@@ -25,6 +25,37 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+type listTasksResponse struct {
+	Tasks any `json:"tasks"`
+}
+
+func (h *TaskHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		h.List(w, r)
+	case http.MethodPost:
+		h.Create(w, r)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func (h *TaskHandler) List(w http.ResponseWriter, r *http.Request) {
+	userID, ok := auth.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	tasks, err := h.tasks.ListTasks(r.Context(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal_server_error"})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, listTasksResponse{Tasks: tasks})
+}
+
 func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
