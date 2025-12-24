@@ -64,6 +64,23 @@ RETURNING id, user_id, title, is_done, due_at, scheduled_at, created_at, updated
 	return t, nil
 }
 
+func (r *TaskRepository) Delete(ctx context.Context, userID uuid.UUID, taskID uuid.UUID) (bool, error) {
+	res, err := r.db.ExecContext(
+		ctx,
+		`DELETE FROM tasks WHERE id = $1 AND user_id = $2;`,
+		taskID,
+		userID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}
+
 func (r *TaskRepository) ListByUser(ctx context.Context, userID uuid.UUID) ([]model.Task, error) {
 	rows, err := r.db.QueryContext(
 		ctx,
