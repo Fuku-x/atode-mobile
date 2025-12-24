@@ -1,5 +1,7 @@
 # Backend API Spec
 
+- OpenAPI: `backend/docs/openapi.yaml`
+
 ## Base
 
 - Base URL: (environment-dependent)

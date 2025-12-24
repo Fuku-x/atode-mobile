@@ -6,6 +6,8 @@ info:
     Backend API for atode-mobile.
 
     Authentication uses Firebase ID Token via Bearer token.
+
+    Markdown spec: backend/docs/api.md
 servers:
   - url: http://localhost:8080
 
