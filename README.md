@@ -55,6 +55,10 @@
 - エントリポイント: `backend/cmd/api/main.go`
 - ヘルスチェック: `GET /healthz` → `ok`
 
+### API 仕様
+
+- API 仕様書: `backend/docs/api.md`
+
 ### 起動
 
 ```bash
@@ -146,25 +150,28 @@ flutter run -d <device_id>
 
 ## DB 設計（計画: PostgreSQL）
 
-最小構成は 2 テーブルを想定します。
+最小構成は 2 テーブルを想定します（現状実装に追随）。
 
 - `users`
   - `id` (UUID)
   - `firebase_uid` (String)
   - `email` (String)
 - `tasks`
-  - `id` (BigInt)
+  - `id` (UUID)
   - `user_id` (UUID)
   - `title` (String)
-  - `status` (String) : 未完了/完了
+  - `is_done` (Boolean)
+  - `due_at` (Timestamp)
   - `scheduled_at` (Timestamp)
 
 ## API 設計（計画）
 
+API の最新仕様は `backend/docs/api.md` を参照してください。
+
 - `POST /tasks` : タスク追加
 - `GET /tasks` : 自分のタスク一覧取得
-- `PUT /tasks/:id` : タスク更新（完了、時間変更など）
-- `DELETE /tasks/:id` : タスク削除
+- `PUT /tasks/{id}` : タスク更新（部分更新、期日/予定のクリアを含む）
+- `DELETE /tasks/{id}` : タスク削除
 
 ## 開発ロードマップ（推奨順）
 
