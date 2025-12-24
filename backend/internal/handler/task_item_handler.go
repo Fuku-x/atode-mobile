@@ -29,29 +29,54 @@ type updateTaskRequest struct {
 }
 
 func (h *TaskItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	userID, ok := auth.UserIDFromContext(r.Context())
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	idStr := strings.TrimPrefix(r.URL.Path, "/tasks/")
-	if idStr == "" || strings.Contains(idStr, "/") {
+	taskID, ok := parseTaskIDFromPath(r.URL.Path)
+	if !ok {
 		writeJSON(w, http.StatusNotFound, errorResponse{Error: "not_found"})
 		return
 	}
 
-	taskID, err := uuid.Parse(idStr)
+	switch r.Method {
+	case http.MethodPut:
+		h.handlePut(w, r, userID, taskID)
+	case http.MethodDelete:
+		h.handleDelete(w, r, userID, taskID)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func parseTaskIDFromPath(path string) (uuid.UUID, bool) {
+	idStr := strings.TrimPrefix(path, "/tasks/")
+	if idStr == "" || strings.Contains(idStr, "/") {
+		return uuid.UUID{}, false
+	}
+	id, err := uuid.Parse(idStr)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_task_id"})
+		return uuid.UUID{}, false
+	}
+	return id, true
+}
+
+func (h *TaskItemHandler) handleDelete(w http.ResponseWriter, r *http.Request, userID uuid.UUID, taskID uuid.UUID) {
+	if err := h.tasks.DeleteTask(r.Context(), userID, taskID); err != nil {
+		if errors.Is(err, service.ErrTaskNotFound) {
+			writeJSON(w, http.StatusNotFound, errorResponse{Error: "not_found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "internal_server_error"})
 		return
 	}
 
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TaskItemHandler) handlePut(w http.ResponseWriter, r *http.Request, userID uuid.UUID, taskID uuid.UUID) {
 	var req updateTaskRequest
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
