@@ -1,6 +1,6 @@
 # Backend API Spec
 
-- OpenAPI: `backend/docs/openapi.yaml`
+- OpenAPI定義: [`openapi.yaml`](./openapi.yaml)
 
 ## Base
 
