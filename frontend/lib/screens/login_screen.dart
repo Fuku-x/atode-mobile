@@ -83,73 +83,121 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Login')),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: AutofillGroup(
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextFormField(
-                    controller: _emailController,
-                    focusNode: _emailFocusNode,
-                    enabled: !_isSubmitting,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [
-                      AutofillHints.username,
-                      AutofillHints.email,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: AutofillGroup(
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 12),
+                      Text(
+                        'atode',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'やることを、あとで。',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 20),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                'ログイン',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _emailController,
+                                focusNode: _emailFocusNode,
+                                enabled: !_isSubmitting,
+                                keyboardType: TextInputType.emailAddress,
+                                autofillHints: const [
+                                  AutofillHints.username,
+                                  AutofillHints.email,
+                                ],
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                textCapitalization: TextCapitalization.none,
+                                textInputAction: TextInputAction.next,
+                                onFieldSubmitted: (_) {
+                                  _passwordFocusNode.requestFocus();
+                                },
+                                decoration: const InputDecoration(
+                                  labelText: 'メールアドレス',
+                                ),
+                                validator: (value) {
+                                  final v = (value ?? '').trim();
+                                  if (v.isEmpty) return 'メールアドレスを入力してください';
+                                  if (!v.contains('@')) return 'メールアドレスの形式が正しくありません';
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              PasswordTextFormField(
+                                controller: _passwordController,
+                                focusNode: _passwordFocusNode,
+                                enabled: !_isSubmitting,
+                                autofillHints: const [AutofillHints.password],
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) {
+                                  _submit(createAccount: false);
+                                },
+                                validator: (value) {
+                                  final v = value ?? '';
+                                  if (v.isEmpty) return 'パスワードを入力してください';
+                                  if (v.length < 6) return '6文字以上で入力してください';
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              LoadingElevatedButton(
+                                isLoading: _isSubmitting,
+                                onPressed: () => _submit(createAccount: false),
+                                child: const Text('ログイン'),
+                              ),
+                              const SizedBox(height: 8),
+                              LoadingOutlinedButton(
+                                isLoading: _isSubmitting,
+                                onPressed: () => _submit(createAccount: true),
+                                child: const Text('新規登録'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        '続行すると、利用規約とプライバシーポリシーに同意したものとみなされます。',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
-                    autocorrect: false,
-                    enableSuggestions: false,
-                    textCapitalization: TextCapitalization.none,
-                    textInputAction: TextInputAction.next,
-                    onFieldSubmitted: (_) {
-                      _passwordFocusNode.requestFocus();
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'メールアドレス',
-                    ),
-                    validator: (value) {
-                      final v = (value ?? '').trim();
-                      if (v.isEmpty) return 'メールアドレスを入力してください';
-                      if (!v.contains('@')) return 'メールアドレスの形式が正しくありません';
-                      return null;
-                    },
                   ),
-                  const SizedBox(height: 12),
-                  PasswordTextFormField(
-                    controller: _passwordController,
-                    focusNode: _passwordFocusNode,
-                    enabled: !_isSubmitting,
-                    autofillHints: const [AutofillHints.password],
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) {
-                      _submit(createAccount: false);
-                    },
-                    validator: (value) {
-                      final v = value ?? '';
-                      if (v.isEmpty) return 'パスワードを入力してください';
-                      if (v.length < 6) return '6文字以上で入力してください';
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  LoadingElevatedButton(
-                    isLoading: _isSubmitting,
-                    onPressed: () => _submit(createAccount: false),
-                    child: const Text('ログイン'),
-                  ),
-                  const SizedBox(height: 8),
-                  LoadingOutlinedButton(
-                    isLoading: _isSubmitting,
-                    onPressed: () => _submit(createAccount: true),
-                    child: const Text('新規登録'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

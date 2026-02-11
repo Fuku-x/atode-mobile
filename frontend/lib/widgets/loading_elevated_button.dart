@@ -16,7 +16,7 @@ class LoadingElevatedButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton(
+    return FilledButton(
       onPressed: isLoading ? null : onPressed,
       child: isLoading ? const AppLoadingIndicator() : child,
     );

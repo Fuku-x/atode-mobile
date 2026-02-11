@@ -1,0 +1,117 @@
+name: Grok Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Review対象のPR番号"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  grok-review:
+    runs-on: ubuntu-latest
+    env:
+      GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
+      GROK_MODEL: grok-2-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve PR number
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          if [ -z "$PR_NUMBER" ]; then
+            PR_NUMBER="${{ inputs.pr_number }}"
+          fi
+          echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
+
+      - name: Fetch PR diff
+        run: |
+          curl -s \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3.diff" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+            -o pr.diff
+
+      - name: Build Grok request
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          with open("prompts/review_prompt.md", "r", encoding="utf-8") as f:
+              prompt = f.read().strip()
+
+          with open("pr.diff", "r", encoding="utf-8") as f:
+              diff = f.read().strip()
+
+          message = f"{prompt}\n\n---\n\nPR Diff:\n{diff}"
+          payload = {
+              "model": os.environ["GROK_MODEL"],
+              "temperature": 0.2,
+              "messages": [
+                  {"role": "user", "content": message}
+              ],
+          }
+
+          with open("payload.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f)
+          PY
+
+      - name: Call Grok API
+        run: |
+          curl -s \
+            -H "Authorization: Bearer $GROK_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d @payload.json \
+            https://api.x.ai/v1/chat/completions \
+            -o response.json
+
+      - name: Extract review
+        run: |
+          python - <<'PY'
+          import json
+
+          with open("response.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+
+          content = data["choices"][0]["message"]["content"]
+          review_body = "## Grok Review\n\n" + content
+
+          with open("review.txt", "w", encoding="utf-8") as f:
+              f.write(review_body)
+          PY
+
+      - name: Post review comment
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          token = os.environ["GITHUB_TOKEN"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          pr_number = os.environ["PR_NUMBER"]
+
+          with open("review.txt", "r", encoding="utf-8") as f:
+              body = f.read()
+
+          url = f"{os.environ['GITHUB_API_URL']}/repos/{repo}/issues/{pr_number}/comments"
+          data = json.dumps({"body": body}).encode("utf-8")
+          request = urllib.request.Request(
+              url,
+              data=data,
+              headers={
+                  "Authorization": f"Bearer {token}",
+                  "Accept": "application/vnd.github+json",
+              },
+          )
+          urllib.request.urlopen(request)
+          PY

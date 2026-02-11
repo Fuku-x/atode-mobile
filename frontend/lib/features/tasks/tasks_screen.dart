@@ -114,6 +114,8 @@ class _TasksScreenState extends State<TasksScreen> {
                           );
                           if (pickedDate == null) return;
 
+                          if (!context.mounted) return;
+
                           final pickedTime = await showTimePicker(
                             context: context,
                             initialTime:
@@ -197,6 +199,7 @@ class _TasksScreenState extends State<TasksScreen> {
     );
 
     controller.dispose();
+    if (!mounted) return;
     if (result == null) return;
 
     if (result.title.isEmpty) {
@@ -294,7 +297,7 @@ class _TasksScreenState extends State<TasksScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tasks'),
+        title: const Text('タスク'),
         actions: [
           IconButton(
             onPressed: _reload,
@@ -303,106 +306,235 @@ class _TasksScreenState extends State<TasksScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _titleController,
-                    focusNode: _titleFocusNode,
-                    enabled: !_isCreating,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _createTask(),
-                    decoration: const InputDecoration(
-                      labelText: 'タスクを追加',
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton(
-                  onPressed: _isCreating ? null : _createTask,
-                  child: _isCreating
-                      ? const AppLoadingIndicator(size: 18, strokeWidth: 2)
-                      : const Text('追加'),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: FutureBuilder<List<Task>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: AppLoadingIndicator(size: 24, strokeWidth: 3),
-                  );
-                }
-
-                if (snapshot.hasError) {
-                  return Center(
+      body: SafeArea(
+        child: FutureBuilder<List<Task>>(
+          future: _future,
+          builder: (context, snapshot) {
+            final slivers = <Widget>[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Card(
                     child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
                         children: [
-                          Text(_errorText(snapshot.error!)),
-                          const SizedBox(height: 12),
-                          ElevatedButton(
-                            onPressed: _reload,
-                            child: const Text('再読み込み'),
+                          Expanded(
+                            child: TextField(
+                              controller: _titleController,
+                              focusNode: _titleFocusNode,
+                              enabled: !_isCreating,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _createTask(),
+                              decoration: const InputDecoration(
+                                labelText: 'タスクを追加',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          FilledButton(
+                            onPressed: _isCreating ? null : _createTask,
+                            child: _isCreating
+                                ? const AppLoadingIndicator(size: 18, strokeWidth: 2)
+                                : const Icon(Icons.add),
                           ),
                         ],
                       ),
                     ),
-                  );
-                }
+                  ),
+                ),
+              ),
+            ];
 
-                final tasks = snapshot.data ?? const <Task>[];
-
-                if (tasks.isEmpty) {
-                  return const Center(child: Text('タスクがありません'));
-                }
-
-                return ListView.separated(
-                  itemCount: tasks.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final task = tasks[index];
-                    final isUpdating = task.id.isNotEmpty && _updatingTaskIds.contains(task.id);
-                    final dueAtText = _formatDateTime(task.dueAt);
-                    final scheduledAtText = _formatDateTime(task.scheduledAt);
-
-                    final subtitleParts = <String>[];
-                    if (dueAtText != null) subtitleParts.add('期限: $dueAtText');
-                    if (scheduledAtText != null) {
-                      subtitleParts.add('リマインダー: $scheduledAtText');
-                    }
-
-                    return ListTile(
-                      leading: Checkbox(
-                        value: task.isDone,
-                        onChanged: isUpdating ? null : (_) => _toggleDone(task),
+            if (snapshot.connectionState != ConnectionState.done) {
+              slivers.add(
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: AppLoadingIndicator(size: 24, strokeWidth: 3),
+                  ),
+                ),
+              );
+            } else if (snapshot.hasError) {
+              slivers.add(
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  '読み込みに失敗しました',
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _errorText(snapshot.error!),
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                                const SizedBox(height: 12),
+                                FilledButton(
+                                  onPressed: _reload,
+                                  child: const Text('再読み込み'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                      title: Text(task.title.isEmpty ? '(no title)' : task.title),
-                      subtitle: subtitleParts.isEmpty
-                          ? null
-                          : Text(subtitleParts.join(' / ')),
-                      trailing: IconButton(
-                        onPressed: isUpdating ? null : () => _editTask(task),
-                        icon: const Icon(Icons.edit),
-                        tooltip: 'Edit',
+                    ),
+                  ),
+                ),
+              );
+            } else {
+              final tasks = snapshot.data ?? const <Task>[];
+              if (tasks.isEmpty) {
+                slivers.add(
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.inbox_outlined,
+                                    size: 28,
+                                    color:
+                                        Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'タスクがありません',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '上の入力欄から追加できます。',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 );
+              } else {
+                slivers.add(
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final task = tasks[index];
+                          final isUpdating = task.id.isNotEmpty &&
+                              _updatingTaskIds.contains(task.id);
+                          final dueAtText = _formatDateTime(task.dueAt);
+                          final scheduledAtText = _formatDateTime(task.scheduledAt);
+
+                          final subtitleParts = <String>[];
+                          if (dueAtText != null) subtitleParts.add('期限: $dueAtText');
+                          if (scheduledAtText != null) {
+                            subtitleParts.add('リマインダー: $scheduledAtText');
+                          }
+
+                          final titleText = task.title.isEmpty ? '(no title)' : task.title;
+
+                          final tile = Card(
+                            child: ListTile(
+                              leading: Checkbox(
+                                value: task.isDone,
+                                onChanged: isUpdating ? null : (_) => _toggleDone(task),
+                              ),
+                              title: Text(
+                                titleText,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: task.isDone
+                                    ? TextStyle(
+                                        decoration: TextDecoration.lineThrough,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      )
+                                    : null,
+                              ),
+                              subtitle: subtitleParts.isEmpty
+                                  ? null
+                                  : Text(
+                                      subtitleParts.join(' / '),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                              trailing: isUpdating
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : IconButton(
+                                      onPressed: () => _editTask(task),
+                                      icon: const Icon(Icons.edit),
+                                      tooltip: 'Edit',
+                                    ),
+                            ),
+                          );
+
+                          if (index == tasks.length - 1) return tile;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: tile,
+                          );
+                        },
+                        childCount: tasks.length,
+                      ),
+                    ),
+                  ),
+                );
+              }
+            }
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                _reload();
+                await _future;
               },
-            ),
-          ),
-        ],
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: slivers,
+              ),
+            );
+          },
+        ),
       ),
     );
   }

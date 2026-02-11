@@ -7,7 +7,7 @@ info:
 
     Authentication uses Firebase ID Token via Bearer token.
 
-    Markdown spec: backend/docs/api.md
+    Markdown仕様: [backend/docs/api.md](./api.md)
 servers:
   - url: http://localhost:8080
 
